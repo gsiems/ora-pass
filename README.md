@@ -1,4 +1,4 @@
-# ora-pass
+# orapass
 
 An Oracle password file parser based on the .pgpass file available to
 PostgreSQL users. Ora-pass searches a similarly formatted file for
@@ -24,9 +24,9 @@ the ORAPASSFILE environment variable. If there is no ORAPASSFILE
 environment variable or if the ORAPASSFILE does not point to a valid
 file then:
 
- * on Unix-like OSes, ora-pass looks for a $HOME/.orapass file and
- finally looks for a $HOME/orapass file. Additionally the file must be
- chmod 600 or ora-pass will refuse to use it.
+ * on Unix-like OSes, orapass looks for a $HOME/.orapass or
+ $HOME/orapass file. Additionally the file must be chmod 600 or orapass
+ will refuse to use it.
 
- * on Windows, ora-pass looks for a APPDATA/oracle/.orapass or
+ * on Windows, orapass looks for a APPDATA/oracle/.orapass or
  APPDATA/oracle/orapass file.
