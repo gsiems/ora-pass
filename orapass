@@ -1,0 +1,5 @@
+# This is a sample orapass file
+localhost:1521:emp:scott:tiger
+localhost:1521:*:scott:lion
+localhost:1522:*:scott:bear
+otherhost:*:*:scott:elephant
