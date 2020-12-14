@@ -13,9 +13,9 @@
 package orapass
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -25,22 +25,24 @@ import (
 	"github.com/phayes/permbits" // MIT license
 )
 
-// PwRec contains the fields for the orapass file
-type PwRec struct {
+// Parser contains the fields for the orapass file
+type Parser struct {
 	Host        string
 	Port        string
 	DbName      string
 	Username    string
 	Password    string
 	OrapassFile string
+	files       []string
+	Debug       bool
 }
 
 // GetPasswd retrieves the password for the specified (host, port,
 // database, username).
-func (p *PwRec) GetPasswd(verbose bool) (PwRec, error) {
+func (p *Parser) GetPasswd() (Parser, error) {
 
-	var p2 PwRec
-	err := p.findPasswordFile(verbose)
+	var p2 Parser
+	err := p.findPasswordFile()
 	if err != nil {
 		return p2, err
 	}
@@ -52,39 +54,30 @@ func (p *PwRec) GetPasswd(verbose bool) (PwRec, error) {
 			return p2, err
 		}
 	}
-	return p.searchFile(verbose)
+	return p.searchFile()
 }
 
 // findPasswordFile searches for an orapass file and returns the first one found
-func (p *PwRec) findPasswordFile(verbose bool) error {
+func (p *Parser) findPasswordFile() error {
 
-	var files []string
-
-	if p.OrapassFile != "" {
-		files = append(files, p.OrapassFile)
-	}
-
-	f := os.Getenv("ORAPASSFILE")
-	if f != "" {
-		carp(verbose, "ORAPASSFILE environment variable is defined")
-		files = append(files, f)
-	}
+	p.appendFileList(p.OrapassFile)
+	p.appendFileList(os.Getenv("ORAPASSFILE"))
 
 	switch runtime.GOOS {
 	case "windows":
 		//os.Getenv("APPDATA") or maybe os.Getenv("LOCALAPPDATA")
 		dir := os.Getenv("APPDATA")
-		files = append(files, filepath.Join(dir, "oracle", ".orapass"))
-		files = append(files, filepath.Join(dir, "oracle", "orapass"))
+		p.appendFileList(filepath.Join(dir, "oracle", ".orapass"))
+		p.appendFileList(filepath.Join(dir, "oracle", "orapass"))
 
 	default:
 		dir := os.Getenv("HOME")
-		files = append(files, filepath.Join(dir, ".orapass"))
-		files = append(files, filepath.Join(dir, "orapass"))
+		p.appendFileList(filepath.Join(dir, ".orapass"))
+		p.appendFileList(filepath.Join(dir, "orapass"))
 	}
 
-	for _, f := range files {
-		ok, err := fileExists(f, verbose)
+	for _, f := range p.files {
+		ok, err := p.fileExists(f)
 		switch {
 		case err != nil:
 			return err
@@ -94,12 +87,19 @@ func (p *PwRec) findPasswordFile(verbose bool) error {
 		}
 	}
 
-	carp(verbose, "No orapass file found")
+	p.carp("No orapass file found")
 	return nil
 }
 
+func (p *Parser) appendFileList(f string) {
+	if f != "" {
+		p.carp(fmt.Sprintf("Adding %q to file list", f))
+		p.files = append(p.files, f)
+	}
+}
+
 // checkFilePerms verifies the permissions on the orapass file
-func (p *PwRec) checkFilePerms() (bool, error) {
+func (p *Parser) checkFilePerms() (bool, error) {
 
 	permissions, err := permbits.Stat(p.OrapassFile)
 	if err != nil {
@@ -117,53 +117,74 @@ func (p *PwRec) checkFilePerms() (bool, error) {
 
 // searchFile searches the orapass file for a matching entry. If more
 // than one entry could match then the first matching entry is returned.
-func (p *PwRec) searchFile(verbose bool) (PwRec, error) {
+func (p *Parser) searchFile() (Parser, error) {
 
-	var p2 PwRec
-	carp(verbose, fmt.Sprintf("Reading %q", p.OrapassFile))
+	var p2 Parser
+	p.carp(fmt.Sprintf("Searchin %q", p.OrapassFile))
 
-	dat, err := ioutil.ReadFile(p.OrapassFile)
+	//dat, err := ioutil.ReadFile(p.OrapassFile)
+	//if err != nil {
+	//	return p2, err
+	//}
+
+	re := regexp.MustCompile("^ *#")
+
+	file, err := os.Open(p.OrapassFile)
 	if err != nil {
 		return p2, err
 	}
+	defer file.Close()
 
-	re := regexp.MustCompile("^ *#")
-	s := string(dat[:])
-	lines := strings.Split(s, "\n")
-	for i, line := range lines {
+	i := 0
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		i++
+
+		line := scanner.Text()
 
 		// Ignore commented outlines
 		if re.MatchString(line) {
 			continue
 		}
 
-		carp(verbose, fmt.Sprintf("    Parsing line %d", i))
+		p.carp(fmt.Sprintf("    Parsing line %d", i))
 		tokens := strings.SplitN(line, ":", 5)
 		if len(tokens) < 5 {
 			continue
 		}
 
-		hostMatch := chkForMatch(p.Host, tokens[0])
-		portMatch := chkForMatch(p.Port, tokens[1])
-		dbNameMatch := chkForMatch(p.DbName, tokens[2])
-		userMatch := chkForMatch(p.Username, tokens[3])
+		hostMatch := p.chkForMatch(p.Host, tokens[0])
+		portMatch := p.chkForMatch(p.Port, tokens[1])
+		dbNameMatch := p.chkForMatch(p.DbName, tokens[2])
+		userMatch := p.chkForMatch(p.Username, tokens[3])
 
-		carp(verbose, fmt.Sprintf("        hostMatch is %t", hostMatch))
-		carp(verbose, fmt.Sprintf("        portMatch is %t", portMatch))
-		carp(verbose, fmt.Sprintf("        dbNameMatch is %t", dbNameMatch))
-		carp(verbose, fmt.Sprintf("        userMatch is %t", userMatch))
-
+		if !hostMatch {
+			p.carp("        Host does not match")
+		}
+		if !portMatch {
+			p.carp("        Port does not match")
+		}
+		if !dbNameMatch {
+			p.carp("        DB name does not match")
+		}
+		if !userMatch {
+			p.carp("        Username does not match")
+		}
 
 		if hostMatch && portMatch && dbNameMatch && userMatch {
+			p.carp("        Match detected")
 
-			p2.Host = pickParm(p.Host, tokens[0])
-			p2.Port = pickParm(p.Port, tokens[1])
-			p2.DbName = pickParm(p.DbName, tokens[2])
+			p2.Host = p.pickParm(p.Host, tokens[0])
+			p2.Port = p.pickParm(p.Port, tokens[1])
+			p2.DbName = p.pickParm(p.DbName, tokens[2])
 			p2.Username = tokens[3]
 			p2.Password = tokens[4]
 
 			return p2, nil
 		}
+	}
+	if err = scanner.Err(); err != nil {
+		return p2, err
 	}
 
 	err = errors.New("Could not find a suitable password entry")
@@ -171,9 +192,9 @@ func (p *PwRec) searchFile(verbose bool) (PwRec, error) {
 }
 
 // fileExists checks to ensure that the specified file exists and is a regular file
-func fileExists(pathname string, verbose bool) (bool, error) {
+func (p *Parser) fileExists(pathname string) (bool, error) {
 
-	carp(verbose, fmt.Sprintf("Looking for file %q", pathname))
+	p.carp(fmt.Sprintf("Looking for file %q", pathname))
 	fi, err := os.Stat(pathname)
 	if err != nil {
 		// For our purposes, a non-existent file is not considered an error
@@ -183,23 +204,24 @@ func fileExists(pathname string, verbose bool) (bool, error) {
 		return false, err
 	}
 
-	carp(verbose, fmt.Sprintf("Found %q", pathname))
+	p.carp(fmt.Sprintf("Found %q", pathname))
 	switch mode := fi.Mode(); {
 	case mode.IsRegular():
 		return true, nil
 	}
 
-	carp(verbose, fmt.Sprintf("%q is not a regular file", pathname))
+	p.carp(fmt.Sprintf("%q is not a regular file", pathname))
 	return false, nil
 }
 
 // chkForMatch checks the calling parameter against the same file
 // parameter, taking into account wild-card characters and returns true
 // on a match
-func chkForMatch(callingParm, fileParm string) bool {
-	if strings.ToUpper(callingParm) == strings.ToUpper(fileParm) {
+func (p *Parser) chkForMatch(callingParm, fileParm string) bool {
+	switch {
+	case strings.ToUpper(callingParm) == strings.ToUpper(fileParm):
 		return true
-	} else if fileParm == "*" {
+	case fileParm == "*" && callingParm != "":
 		return true
 	}
 	return false
@@ -207,15 +229,15 @@ func chkForMatch(callingParm, fileParm string) bool {
 
 // pickParm chooses between the calling parameter and file parameter
 // and returns the appropriate value
-func pickParm(callingParm, fileParm string) string {
+func (p *Parser) pickParm(callingParm, fileParm string) string {
 	if fileParm != "*" && fileParm != "" {
 		return fileParm
 	}
 	return callingParm
 }
 
-func carp(verbose bool, s string) {
-	if verbose {
+func (p *Parser) carp(s string) {
+	if p.Debug {
 		fmt.Fprintln(os.Stderr, s)
 	}
 }
