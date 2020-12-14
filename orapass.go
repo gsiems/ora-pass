@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -41,8 +42,19 @@ type Parser struct {
 // database, username).
 func (p *Parser) GetPasswd() (Parser, error) {
 
+	var osUser string
+	usr, err := user.Current()
+	if err == nil {
+		osUser = usr.Username
+	}
+
+	p.Host = coalesce([]string{p.Host, os.Getenv("ORACLE_HOST"), "localhost"})
+	p.Port = coalesce([]string{p.Port, os.Getenv("ORACLE_PORT"), "1521"})
+	p.DbName = coalesce([]string{p.DbName, os.Getenv("ORACLE_SID")})
+	p.Username = coalesce([]string{p.Username, os.Getenv("ORACLE_USER"), osUser})
+
 	var p2 Parser
-	err := p.findPasswordFile()
+	err = p.findPasswordFile()
 	if err != nil {
 		return p2, err
 	}
@@ -93,7 +105,7 @@ func (p *Parser) findPasswordFile() error {
 
 func (p *Parser) appendFileList(f string) {
 	if f != "" {
-		p.carp(fmt.Sprintf("Adding %q to file list", f))
+		p.carp(fmt.Sprintf("Adding %q to search list", f))
 		p.files = append(p.files, f)
 	}
 }
@@ -120,7 +132,7 @@ func (p *Parser) checkFilePerms() (bool, error) {
 func (p *Parser) searchFile() (Parser, error) {
 
 	var p2 Parser
-	p.carp(fmt.Sprintf("Searchin %q", p.OrapassFile))
+	p.carp(fmt.Sprintf("Searching %q", p.OrapassFile))
 
 	//dat, err := ioutil.ReadFile(p.OrapassFile)
 	//if err != nil {
@@ -240,4 +252,14 @@ func (p *Parser) carp(s string) {
 	if p.Debug {
 		fmt.Fprintln(os.Stderr, s)
 	}
+}
+
+// coalesce picks the first non-empty string from a list
+func coalesce(s []string) string {
+	for _, v := range s {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
