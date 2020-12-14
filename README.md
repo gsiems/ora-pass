@@ -1,12 +1,12 @@
 # orapass
 
-An Oracle password file parser based on the .pgpass file available to
-PostgreSQL users. Ora-pass searches a similarly formatted file for
-Oracle password information. The intent is to provide an alternative to
-hard-coding password information in scripts, applications, or config
-files. Keeping the Oracle password information in a separate file also
-lessens the chances of having password information showing up in
-source-code control systems.
+An Oracle password file parsing library and utility based on the
+.pgpass file available to PostgreSQL users, orapass searches a
+similarly formatted file for Oracle password information. The intent is
+to provide an alternative to hard-coding password information in
+scripts, applications, or config files. Keeping the Oracle password
+information in a separate file also lessens the chances of having
+password information showing up in source-code control systems.
 
 The orapass file is a colon separated file consisting of one line
 per entry where each entry has five fields:
