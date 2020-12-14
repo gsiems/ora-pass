@@ -2,4 +2,8 @@
 localhost:1521:emp:scott:tiger
 localhost:1521:*:scott:lion
 localhost:1522:emp:scott:bear
+localhost:*:emp:scott:cat
 otherhost:*:emp:scott:elephant
+otherhost:1521:newemp:eve:seal
+otherhost:*:oldemp:alice:wolf
+*:*:oldemp:alice:wolf
