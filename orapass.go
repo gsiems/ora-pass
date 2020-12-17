@@ -249,8 +249,10 @@ func (p *Parser) pickParm(callingParm, fileParm string) string {
 }
 
 func (p *Parser) carp(s string) {
-	if p.Debug {
-		fmt.Fprintln(os.Stderr, s)
+	if s != "" {
+		if p.Debug {
+			os.Stderr.WriteString(s)
+		}
 	}
 }
 
