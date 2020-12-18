@@ -132,12 +132,7 @@ func (p *Parser) checkFilePerms() (bool, error) {
 func (p *Parser) searchFile() (Parser, error) {
 
 	var p2 Parser
-	p.carp(fmt.Sprintf("Searching %q", p.OrapassFile))
-
-	//dat, err := ioutil.ReadFile(p.OrapassFile)
-	//if err != nil {
-	//	return p2, err
-	//}
+	p.carp(fmt.Sprintf("Searching %q for %s/%s", p.OrapassFile, p.Username, p.DbName))
 
 	re := regexp.MustCompile("^ *#")
 
