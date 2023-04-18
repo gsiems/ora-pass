@@ -30,3 +30,8 @@ file then:
 
  * on Windows, orapass looks for a APPDATA/oracle/.orapass or
  APPDATA/oracle/orapass file.
+
+# Example
+
+osql.sh is an example bash script that uses orapass to automate connecting
+to Oracle using sqlcl.
